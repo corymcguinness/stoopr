@@ -1,4 +1,5 @@
 export const runtime = "edge";
+// edge runtime enabled
 
 import { getSupabase } from "../../../lib/supabase";
 
