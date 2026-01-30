@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { getSupabase } from "../../../lib/supabase";
 
 function Section({ title, children }) {
