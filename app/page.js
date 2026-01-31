@@ -1,184 +1,140 @@
 export const runtime = "edge";
 
+import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 
-export default async function Home({ searchParams }) {
+function moneyRange(min, max) {
+  if (min == null && max == null) return null;
+  if (min != null && max != null) {
+    if (Number(min) === Number(max)) return `$${Number(min).toLocaleString()}`;
+    return `$${Number(min).toLocaleString()}–$${Number(max).toLocaleString()}`;
+  }
+  const v = min ?? max;
+  return `$${Number(v).toLocaleString()}`;
+}
+
+function asFlags(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export default async function Home() {
   const supabase = getSupabase();
 
-  const sort = searchParams?.sort === "recent" ? "recent" : "score";
-
-  let q = supabase
+  const { data: cards, error } = await supabase
     .from("building_cards")
-    .select("*")
-    .eq("neighborhood_id", "park-slope");
-
-  if (sort === "recent") {
-    q = q
-      .order("latest_listed_at", { ascending: false, nullsLast: true })
-      .order("overall_score", { ascending: false, nullsLast: true })
-      .order("address_display", { ascending: true });
-  } else {
-    q = q
-      .order("overall_score", { ascending: false, nullsLast: true })
-      .order("latest_listed_at", { ascending: false, nullsLast: true })
-      .order("address_display", { ascending: true });
-  }
-
-  const { data: buildings, error } = await q;
+    .select(
+      "bbl,address_display,neighborhood_id,overall_score,flags,active_listings_count,min_ask_price,max_ask_price"
+    )
+    .eq("neighborhood_id", "park-slope")
+    .order("overall_score", { ascending: false, nullsFirst: false })
+    .order("address_display", { ascending: true });
 
   if (error) {
-    console.error(error);
     return (
-      <main style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 32, fontWeight: 700 }}>Stoopr</h1>
-        <pre style={{ whiteSpace: "pre-wrap", color: "#b91c1c", marginTop: 16 }}>
+      <main className="p-6">
+        <h1 className="text-4xl font-extrabold tracking-tight">Stoopr</h1>
+        <pre className="mt-6 whitespace-pre-wrap text-sm text-red-700">
           {JSON.stringify(error, null, 2)}
         </pre>
       </main>
     );
   }
 
-  const count = (buildings || []).length;
-
-  const mostRecent = (buildings || []).reduce((acc, b) => {
-    const dates = [b.latest_listed_at, b.intel_updated_at].filter(Boolean);
-    if (!dates.length) return acc;
-
-    const newest = new Date(
-      Math.max(...dates.map((d) => new Date(d).getTime()))
-    );
-
-    if (!acc) return newest;
-    return newest > acc ? newest : acc;
-  }, null);
-
-  const updatedLabel = mostRecent
-    ? `updated ${mostRecent.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })}`
-    : "no recent updates";
-
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 32, fontWeight: 700 }}>Stoopr</h1>
+    <main className="p-6">
+      <header className="max-w-4xl">
+        <h1 className="text-5xl font-extrabold tracking-tight">Stoopr</h1>
+        <p className="mt-3 text-lg text-black/60">
+          Park Slope brownstone intelligence (v0)
+        </p>
 
-      <p style={{ opacity: 0.7, marginTop: 8 }}>
-        Park Slope brownstone intelligence (v0)
-      </p>
+        <nav className="mt-6 flex gap-4 text-sm">
+          <Link className="underline underline-offset-4" href="/">
+            Home
+          </Link>
+          <Link className="underline underline-offset-4" href="/for-sale">
+            For sale
+          </Link>
+        </nav>
+      </header>
 
-      {/* Header + sort */}
-      <div className="mt-10 flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Buildings</h2>
-          <div className="mt-2 text-sm text-black/60">
-            Park Slope • {count} buildings tracked • {updatedLabel}
-          </div>
-        </div>
+      <section className="mt-10 max-w-4xl">
+        <h2 className="text-xl font-bold">Buildings</h2>
 
-        <div className="shrink-0">
-          <div className="inline-flex overflow-hidden rounded-full border border-black/10 text-sm">
-            <a
-              href="/"
-              className={`px-3 py-1.5 ${
-                sort === "score"
-                  ? "bg-black text-white"
-                  : "text-black/70 hover:bg-black/5"
-              }`}
-            >
-              Score
-            </a>
-            <a
-              href="/?sort=recent"
-              className={`px-3 py-1.5 ${
-                sort === "recent"
-                  ? "bg-black text-white"
-                  : "text-black/70 hover:bg-black/5"
-              }`}
-            >
-              Recently listed
-            </a>
-          </div>
-        </div>
-      </div>
+        <div className="mt-6 divide-y divide-black/10 border-t border-black/10">
+          {(cards || []).map((b) => {
+            const flags = asFlags(b.flags).slice(0, 4);
+            const price = moneyRange(b.min_ask_price, b.max_ask_price);
 
-      {/* Rows */}
-      <div className="mt-8 divide-y divide-black/10">
-        {(buildings || []).map((b) => {
-          const price =
-            b.min_ask_price && b.max_ask_price
-              ? b.min_ask_price === b.max_ask_price
-                ? `$${Number(b.min_ask_price).toLocaleString()}`
-                : `$${Number(b.min_ask_price).toLocaleString()}–$${Number(
-                    b.max_ask_price
-                  ).toLocaleString()}`
-              : null;
+            return (
+              <Link
+                key={b.bbl}
+                href={`/b/${b.bbl}`}
+                className="block py-6 hover:bg-black/[0.02]"
+              >
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="text-2xl font-bold leading-tight">
+                      {b.address_display}
+                    </div>
 
-          const latestListed = b.latest_listed_at
-            ? `latest listed ${new Date(b.latest_listed_at).toLocaleDateString(
-                "en-US",
-                { month: "short", day: "numeric" }
-              )}`
-            : null;
+                    <div className="mt-2 text-sm text-black/60">
+                      <span className="font-medium text-black/70">BBL</span>{" "}
+                      {b.bbl}
+                      {" • "}
+                      {b.active_listings_count > 0 ? (
+                        <>
+                          {b.active_listings_count} active
+                          {price ? ` • ${price}` : ""}
+                        </>
+                      ) : (
+                        "no active listings"
+                      )}
+                    </div>
 
-          return (
-            <a
-              key={b.bbl}
-              href={`/b/${b.bbl}`}
-              className="block px-2 py-7 hover:bg-black/[0.02]"
-            >
-              <div className="flex items-start justify-between gap-6">
-                {/* Left column */}
-                <div className="min-w-0">
-                  <div className="text-lg font-semibold leading-snug">
-                    {b.address_display}
+                    {flags.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {flags.map((f) => (
+                          <span
+                            key={f}
+                            className="rounded-full border border-black/10 px-2 py-1 text-xs text-black/70"
+                          >
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="mt-1 text-sm text-black/60">
-                    BBL {b.bbl}
-                    {b.active_listings_count > 0 ? (
+                  <div className="shrink-0 text-right">
+                    {typeof b.overall_score === "number" ? (
                       <>
-                        {" • "}
-                        {b.active_listings_count} active
-                        {price ? ` • ${price}` : ""}
-                        {latestListed ? ` • ${latestListed}` : ""}
+                        <div className="text-xs uppercase tracking-wide text-black/50">
+                          Score
+                        </div>
+                        <div className="mt-1 text-3xl font-bold tabular-nums">
+                          {b.overall_score}
+                        </div>
                       </>
                     ) : (
-                      " • no active listings"
+                      <div className="text-sm text-black/40">No score</div>
                     )}
                   </div>
-
-                  {Array.isArray(b.flags) && b.flags.length > 0 ? (
-                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                      {b.flags.slice(0, 3).map((f) => (
-                        <span key={f} className="text-black/70">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
-
-                {/* Right column */}
-                <div className="flex h-full flex-col items-end justify-center text-right">
-                  {typeof b.overall_score === "number" ? (
-                    <>
-                      <div className="text-xs uppercase tracking-wide text-black/50">
-                        Score
-                      </div>
-                      <div className="mt-1 text-2xl font-semibold tabular-nums">
-                        {b.overall_score}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-black/40">No score</div>
-                  )}
-                </div>
-              </div>
-            </a>
-          );
-        })}
-      </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
     </main>
   );
 }
