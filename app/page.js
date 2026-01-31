@@ -1,23 +1,25 @@
 export const runtime = "edge";
 
 import Link from "next/link";
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase"; // ✅ relative path from /app/page.js
 
 export default async function Home() {
   const supabase = getSupabase();
 
   const { data: buildings, error } = await supabase
     .from("buildings")
-    .select("bbl,address_display,neighborhood_id")
-    .eq("neighborhood_id", "park-slope") // ✅ Park Slope–first
+    .select("bbl,address_display,neighborhood_id,created_at")
+    .eq("neighborhood_id", "park-slope") // Park Slope–first
     .order("created_at", { ascending: false })
     .limit(50);
 
   if (error) {
     return (
       <main style={{ padding: 24 }}>
-        <h1>Stoopr</h1>
-        <pre>{error.message}</pre>
+        <h1 style={{ fontSize: 32, fontWeight: 700 }}>Stoopr</h1>
+        <pre style={{ whiteSpace: "pre-wrap", color: "#b91c1c" }}>
+          {JSON.stringify(error, null, 2)}
+        </pre>
       </main>
     );
   }
@@ -37,9 +39,7 @@ export default async function Home() {
       <ul style={{ marginTop: 12, lineHeight: 1.9 }}>
         {(buildings ?? []).map((b) => (
           <li key={b.bbl}>
-            <Link href={`/b/${b.bbl}`}>
-              {b.address_display ?? b.bbl}
-            </Link>{" "}
+            <Link href={`/b/${b.bbl}`}>{b.address_display ?? b.bbl}</Link>{" "}
             <span style={{ opacity: 0.6 }}>({b.bbl})</span>
           </li>
         ))}
