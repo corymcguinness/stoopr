@@ -40,14 +40,72 @@ if (error) {
         Buildings
       </h2>
 
-      <ul style={{ marginTop: 12, lineHeight: 1.9 }}>
-        {(buildings ?? []).map((b) => (
-          <li key={b.bbl}>
-            <Link href={`/b/${b.bbl}`}>{b.address_display ?? b.bbl}</Link>{" "}
-            <span style={{ opacity: 0.6 }}>({b.bbl})</span>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-6 space-y-3">
+  {(buildings || []).map((b) => {
+    const price =
+      b.min_ask_price && b.max_ask_price
+        ? b.min_ask_price === b.max_ask_price
+          ? `$${Number(b.min_ask_price).toLocaleString()}`
+          : `$${Number(b.min_ask_price).toLocaleString()}–$${Number(b.max_ask_price).toLocaleString()}`
+        : null;
+
+    return (
+      <a
+        key={b.bbl}
+        href={`/b/${b.bbl}`}
+        className="block rounded-lg border border-black/10 bg-white px-5 py-4 hover:border-black/20"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-lg font-semibold leading-snug text-black">
+              {b.address_display}
+            </div>
+            <div className="mt-1 text-sm text-black/60">
+              BBL {b.bbl}
+              {b.active_listings_count > 0 ? (
+                <>
+                  {" • "}
+                  {b.active_listings_count} active
+                  {price ? ` • ${price}` : ""}
+                </>
+              ) : (
+                " • no active listings"
+              )}
+            </div>
+
+            {Array.isArray(b.flags) && b.flags.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {b.flags.slice(0, 3).map((f) => (
+                  <span
+                    key={f}
+                    className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-black/70"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="shrink-0 text-right">
+            {typeof b.overall_score === "number" ? (
+              <>
+                <div className="text-xs uppercase tracking-wide text-black/50">
+                  Score
+                </div>
+                <div className="text-2xl font-semibold tabular-nums">
+                  {b.overall_score}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-black/40">No score</div>
+            )}
+          </div>
+        </div>
+      </a>
+    );
+  })}
+</div>
     </main>
   );
 }
