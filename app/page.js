@@ -7,11 +7,15 @@ export default async function Home() {
   const supabase = getSupabase();
 
   const { data: buildings, error } = await supabase
-    .from("buildings")
-    .select("bbl,address_display,neighborhood_id,created_at")
-    .eq("neighborhood_id", "park-slope") // Park Slope–first
-    .order("created_at", { ascending: false })
-    .limit(50);
+    .from("building_cards")
+    .select("*")
+    .eq("neighborhood_id", "park-slope")
+    .order("overall_score", { ascending: false, nullsFirst: false })
+    .order("address_display", { ascending: true });
+
+if (error) {
+  console.error(error);
+}
 
   if (error) {
     return (
