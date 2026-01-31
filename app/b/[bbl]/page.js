@@ -32,17 +32,17 @@ export default async function BuildingPage({ params }) {
   const { data: intelRows } = await supabase
     .from("intel_current")
     .select("*")
-    .eq("building_id", building.id)
+    .eq("bbl", building.id)
     .limit(1);
 
   const intel = Array.isArray(intelRows) ? intelRows[0] : null;
   const flags = Array.isArray(intel?.flags) ? intel.flags : [];
 
   const [permits, violations, sales, listings] = await Promise.all([
-    supabase.from("dob_permits").select("*").eq("building_id", building.id).order("filed_date", { ascending: false }).limit(25),
-    supabase.from("dob_violations").select("*").eq("building_id", building.id).order("issue_date", { ascending: false }).limit(25),
-    supabase.from("sales").select("*").eq("building_id", building.id).order("sale_date", { ascending: false }).limit(10),
-    supabase.from("listings").select("*").eq("building_id", building.id).order("last_seen", { ascending: false }).limit(10),
+    supabase.from("dob_permits").select("*").eq("bbl", building.bbl).order("filed_date", { ascending: false }).limit(25),
+    supabase.from("dob_violations").select("*").eq("bbl", building.bbl).order("issue_date", { ascending: false }).limit(25),
+    supabase.from("sales").select("*").eq("bbl", building.bbl).order("sale_date", { ascending: false }).limit(10),
+    supabase.from("listings").select("*").eq("bbl", building.bbl).order("last_seen", { ascending: false }).limit(10),
   ]);
 
   return (
