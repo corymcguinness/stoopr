@@ -1,7 +1,7 @@
 export const runtime = "edge";
 
 import Link from "next/link";
-import { getSupabase } from "../../lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 function formatPrice(n) {
   if (n === null || n === undefined) return "—";
