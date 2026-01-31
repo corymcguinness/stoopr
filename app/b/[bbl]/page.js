@@ -1,6 +1,6 @@
 export const runtime = "edge";
 
-import { getSupabase } from "../../../lib/supabase"; // <-- safest path (no @ alias)
+import { getSupabase } from "@/lib/supabase"; // <-- safest path (no @ alias)
 
 function formatPrice(n) {
   if (n === null || n === undefined) return "—";
