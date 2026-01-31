@@ -1,6 +1,6 @@
 export const runtime = "edge";
 
-import { getSupabase } from "../../lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export default async function ForSale() {
   const supabase = getSupabase();
