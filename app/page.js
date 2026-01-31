@@ -1,32 +1,62 @@
 export const runtime = "edge";
 
-import Link from "next/link";
-import { getSupabase } from "@/lib/supabase"; // ✅ relative path from /app/page.js
+import { getSupabase } from "@/lib/supabase";
 
-export default async function Home() {
+export default async function Home({ searchParams }) {
   const supabase = getSupabase();
 
-  const { data: buildings, error } = await supabase
+  const sort = searchParams?.sort === "recent" ? "recent" : "score";
+
+  let q = supabase
     .from("building_cards")
     .select("*")
-    .eq("neighborhood_id", "park-slope")
-    .order("overall_score", { ascending: false, nullsFirst: false })
-    .order("address_display", { ascending: true });
+    .eq("neighborhood_id", "park-slope");
 
-if (error) {
-  console.error(error);
-}
+  if (sort === "recent") {
+    q = q
+      .order("latest_listed_at", { ascending: false, nullsLast: true })
+      .order("overall_score", { ascending: false, nullsLast: true })
+      .order("address_display", { ascending: true });
+  } else {
+    q = q
+      .order("overall_score", { ascending: false, nullsLast: true })
+      .order("latest_listed_at", { ascending: false, nullsLast: true })
+      .order("address_display", { ascending: true });
+  }
+
+  const { data: buildings, error } = await q;
 
   if (error) {
+    console.error(error);
     return (
       <main style={{ padding: 24 }}>
         <h1 style={{ fontSize: 32, fontWeight: 700 }}>Stoopr</h1>
-        <pre style={{ whiteSpace: "pre-wrap", color: "#b91c1c" }}>
+        <pre style={{ whiteSpace: "pre-wrap", color: "#b91c1c", marginTop: 16 }}>
           {JSON.stringify(error, null, 2)}
         </pre>
       </main>
     );
   }
+
+  const count = (buildings || []).length;
+
+  const mostRecent = (buildings || []).reduce((acc, b) => {
+    const candidates = [b.latest_listed_at, b.intel_updated_at].filter(Boolean);
+    const best = candidates.length
+      ? new Date(Math.max(...candidates.map((d) => new Date(d).getTime())))
+      : null;
+
+    if (!best) return acc;
+    if (!acc) return best;
+    return best > acc ? best : acc;
+  }, null);
+
+  const updatedLabel = mostRecent
+    ? `updated ${mostRecent.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })}`
+    : "no recent updates";
 
   return (
     <main style={{ padding: 24 }}>
@@ -36,76 +66,117 @@ if (error) {
         Park Slope brownstone intelligence (v0)
       </p>
 
-      <h2 style={{ marginTop: 24, fontSize: 18, fontWeight: 600 }}>
-        Buildings
-      </h2>
-
-      <div className="mt-6 space-y-3">
-  {(buildings || []).map((b) => {
-    const price =
-      b.min_ask_price && b.max_ask_price
-        ? b.min_ask_price === b.max_ask_price
-          ? `$${Number(b.min_ask_price).toLocaleString()}`
-          : `$${Number(b.min_ask_price).toLocaleString()}–$${Number(b.max_ask_price).toLocaleString()}`
-        : null;
-
-    return (
-      <a
-        key={b.bbl}
-        href={`/b/${b.bbl}`}
-        className="block rounded-lg border border-black/10 bg-white px-5 py-4 hover:border-black/20"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-lg font-semibold leading-snug text-black">
-              {b.address_display}
-            </div>
-            <div className="mt-1 text-sm text-black/60">
-              BBL {b.bbl}
-              {b.active_listings_count > 0 ? (
-                <>
-                  {" • "}
-                  {b.active_listings_count} active
-                  {price ? ` • ${price}` : ""}
-                </>
-              ) : (
-                " • no active listings"
-              )}
-            </div>
-
-            {Array.isArray(b.flags) && b.flags.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {b.flags.slice(0, 3).map((f) => (
-                  <span
-                    key={f}
-                    className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-black/70"
-                  >
-                    {f}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="shrink-0 text-right">
-            {typeof b.overall_score === "number" ? (
-              <>
-                <div className="text-xs uppercase tracking-wide text-black/50">
-                  Score
-                </div>
-                <div className="text-2xl font-semibold tabular-nums">
-                  {b.overall_score}
-                </div>
-              </>
-            ) : (
-              <div className="text-sm text-black/40">No score</div>
-            )}
+      <div className="mt-8 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold">Buildings</h2>
+          <div className="mt-2 text-sm text-black/60">
+            Park Slope • {count} buildings tracked • {updatedLabel}
           </div>
         </div>
-      </a>
-    );
-  })}
-</div>
+
+        <div className="shrink-0">
+          <div className="inline-flex overflow-hidden rounded-full border border-black/10 text-sm">
+            <a
+              href="/"
+              className={`px-3 py-1.5 ${
+                sort === "score"
+                  ? "bg-black text-white"
+                  : "text-black/70 hover:bg-black/5"
+              }`}
+            >
+              Score
+            </a>
+            <a
+              href="/?sort=recent"
+              className={`px-3 py-1.5 ${
+                sort === "recent"
+                  ? "bg-black text-white"
+                  : "text-black/70 hover:bg-black/5"
+              }`}
+            >
+              Recently listed
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-3">
+        {(buildings || []).map((b) => {
+          const price =
+            b.min_ask_price && b.max_ask_price
+              ? b.min_ask_price === b.max_ask_price
+                ? `$${Number(b.min_ask_price).toLocaleString()}`
+                : `$${Number(b.min_ask_price).toLocaleString()}–$${Number(
+                    b.max_ask_price
+                  ).toLocaleString()}`
+              : null;
+
+          const latestListedLabel = b.latest_listed_at
+            ? `latest listed ${new Date(b.latest_listed_at).toLocaleDateString(
+                "en-US",
+                { month: "short", day: "numeric" }
+              )}`
+            : null;
+
+          return (
+            <a
+              key={b.bbl}
+              href={`/b/${b.bbl}`}
+              className="block rounded-lg border border-black/10 bg-white px-5 py-4 hover:border-black/20"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-lg font-semibold leading-snug text-black">
+                    {b.address_display}
+                  </div>
+
+                  <div className="mt-1 text-sm text-black/60">
+                    BBL {b.bbl}
+                    {b.active_listings_count > 0 ? (
+                      <>
+                        {" • "}
+                        {b.active_listings_count} active
+                        {price ? ` • ${price}` : ""}
+                        {latestListedLabel ? ` • ${latestListedLabel}` : ""}
+                      </>
+                    ) : (
+                      " • no active listings"
+                    )}
+                  </div>
+
+                  {Array.isArray(b.flags) && b.flags.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {b.flags.slice(0, 3).map((f) => (
+                        <span
+                          key={f}
+                          className="rounded-full border border-black/10 px-2 py-0.5 text-xs text-black/70"
+                        >
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="shrink-0 text-right">
+                  {typeof b.overall_score === "number" ? (
+                    <>
+                      <div className="text-xs uppercase tracking-wide text-black/50">
+                        Score
+                      </div>
+                      <div className="text-2xl font-semibold tabular-nums">
+                        {b.overall_score}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-black/40">No score</div>
+                  )}
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
     </main>
   );
 }
