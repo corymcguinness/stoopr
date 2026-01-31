@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 // edge runtime enabled
 
-import { getSupabase } from "../../../lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 function Section({ title, children }) {
   return (
