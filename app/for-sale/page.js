@@ -6,7 +6,7 @@ export default async function ForSale() {
   // 1) Grab active listings
   const { data: listings, error } = await supabase
     .from("listings")
-    .select("id, building_id, source, source_url, status, ask_price, last_seen")
+    .select("id, bbl, source, source_url, status, ask_price, last_seen")
     .eq("status", "active")
     .order("last_seen", { ascending: false })
     .limit(100);
@@ -15,7 +15,7 @@ export default async function ForSale() {
     return <pre className="text-sm text-red-600 whitespace-pre-wrap">{JSON.stringify(error, null, 2)}</pre>;
   }
 
-  const buildingIds = Array.from(new Set((listings ?? []).map((l) => l.building_id).filter(Boolean)));
+  const buildingIds = Array.from(new Set((listings ?? []).map((l) => l.bbl).filter(Boolean)));
 
   // 2) Fetch building info for those listings
   const { data: buildings } = await supabase
@@ -40,7 +40,7 @@ export default async function ForSale() {
           <div className="py-6 text-sm text-zinc-600">No active listings yet.</div>
         ) : (
           (listings ?? []).map((l) => {
-            const b = byId.get(l.building_id);
+            const b = byId.get(l.bbl);
             const title = b?.address_norm ?? b?.bbl ?? "Unknown building";
 
             return (
