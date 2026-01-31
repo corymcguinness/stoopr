@@ -47,6 +47,10 @@ export default async function BuildingPage({ params }) {
     return <div className="text-sm text-zinc-600">Not found.</div>;
   }
 
+  if (!building.bbl) {
+    return <pre className="text-red-600">Building missing BBL</pre>;
+  }
+
   // join intel_current by BBL
   const { data: intelRows } = await supabase
     .from("intel_current")
