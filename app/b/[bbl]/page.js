@@ -1,7 +1,20 @@
-export const runtime = 'edge';
-// edge runtime enabled
+export const runtime = "edge";
 
-import { getSupabase } from "@/lib/supabase";
+import { getSupabase } from "../../../lib/supabase"; // <-- safest path (no @ alias)
+
+function formatPrice(n) {
+  if (n === null || n === undefined) return "—";
+  const num = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(num)) return "—";
+  return `$${num.toLocaleString()}`;
+}
+
+function formatISODate(d) {
+  if (!d) return "—";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return "—";
+  return dt.toISOString().slice(0, 10);
+}
 
 function Section({ title, children }) {
   return (
@@ -34,7 +47,7 @@ export default async function BuildingPage({ params }) {
     return <div className="text-sm text-zinc-600">Not found.</div>;
   }
 
-  // ✅ FIX: join intel_current by BBL, not building.id
+  // join intel_current by BBL
   const { data: intelRows } = await supabase
     .from("intel_current")
     .select("*")
@@ -66,7 +79,7 @@ export default async function BuildingPage({ params }) {
       .order("sale_date", { ascending: false })
       .limit(10),
 
-    // ✅ FIX: use listed_at (last_seen does not exist)
+    // listings ordered by listed_at (not last_seen)
     supabase
       .from("listings")
       .select("*")
@@ -79,7 +92,9 @@ export default async function BuildingPage({ params }) {
     <div>
       <div>
         <div className="text-xs text-zinc-500">
-          <a href="/" className="hover:underline">← Park Slope</a>
+          <a href="/" className="hover:underline">
+            ← Park Slope
+          </a>
         </div>
 
         <h1 className="mt-2 text-lg font-semibold">
@@ -87,13 +102,23 @@ export default async function BuildingPage({ params }) {
         </h1>
 
         <div className="mt-1 font-mono text-xs text-zinc-600">
-          BBL {building.bbl} · Zoning {building.zoning_district ?? "—"} · FAR {building.far_built ?? "—"}/{building.far_allowed ?? "—"}
+          BBL {building.bbl} ·{" "}
+          <span className="text-zinc-500">
+            BBL = NYC’s building ID (borough-block-lot)
+          </span>
+        </div>
+
+        <div className="mt-1 font-mono text-xs text-zinc-600">
+          Zoning {building.zoning_district ?? "—"} · FAR{" "}
+          {building.far_built ?? "—"}/{building.far_allowed ?? "—"}
         </div>
       </div>
 
       <Section title="Intel">
         <div className="font-mono text-sm text-zinc-700">
-          Overall {intel?.overall_score ?? "—"} · Upside {intel?.expansion_score ?? "—"} · Risk {intel?.reno_risk_score ?? "—"} · Friction {intel?.landmark_friction_score ?? "—"}
+          Overall {intel?.overall_score ?? "—"} · Upside{" "}
+          {intel?.expansion_score ?? "—"} · Risk {intel?.reno_risk_score ?? "—"} ·
+          Friction {intel?.landmark_friction_score ?? "—"}
         </div>
 
         {flags.length > 0 && (
@@ -110,9 +135,7 @@ export default async function BuildingPage({ params }) {
         )}
 
         {intel?.summary_text && (
-          <div className="mt-3 text-sm text-zinc-700">
-            {intel.summary_text}
-          </div>
+          <div className="mt-3 text-sm text-zinc-700">{intel.summary_text}</div>
         )}
       </Section>
 
@@ -141,7 +164,7 @@ export default async function BuildingPage({ params }) {
               <span className="font-mono text-xs text-zinc-500">
                 {s.sale_date ?? "—"}
               </span>{" "}
-              Sale — {s.sale_price ? `$${Number(s.sale_price).toLocaleString()}` : "—"}
+              Sale — {formatPrice(s.sale_price)}
             </div>
           ))}
         </div>
@@ -151,14 +174,14 @@ export default async function BuildingPage({ params }) {
         <Section title="Listings">
           <div className="space-y-2 text-sm">
             {(listings.data ?? []).map((l) => (
-              <div key={l.id} className="flex items-center justify-between gap-3">
+              <div
+                key={l.id}
+                className="flex items-center justify-between gap-3"
+              >
                 <div className="text-zinc-700">
-                  {l.status ?? "—"} ·{" "}
-                  {l.ask_price ? `$${Number(l.ask_price).toLocaleString()}` : "—"} ·{" "}
+                  {l.status ?? "—"} · {formatPrice(l.ask_price)} ·{" "}
                   <span className="font-mono text-xs text-zinc-500">
-                    {l.listed_at
-                      ? new Date(l.listed_at).toISOString().slice(0, 10)
-                      : "—"}
+                    {formatISODate(l.listed_at)}
                   </span>
                 </div>
 
@@ -180,4 +203,3 @@ export default async function BuildingPage({ params }) {
     </div>
   );
 }
-
