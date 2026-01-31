@@ -1,168 +1,188 @@
 export const runtime = "edge";
 
+import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 
-function formatPrice(n) {
-  if (n === null || n === undefined) return "—";
-  const num = typeof n === "number" ? n : Number(n);
-  if (!Number.isFinite(num)) return "—";
-  return `$${num.toLocaleString()}`;
+function money(v) {
+  if (v == null) return null;
+  return `$${Number(v).toLocaleString()}`;
 }
 
-function formatISODate(d) {
-  if (!d) return "—";
-  const dt = new Date(d);
-  if (Number.isNaN(dt.getTime())) return "—";
-  return dt.toISOString().slice(0, 10);
+function moneyRange(min, max) {
+  if (min == null && max == null) return null;
+  if (min != null && max != null) {
+    if (Number(min) === Number(max)) return `$${Number(min).toLocaleString()}`;
+    return `$${Number(min).toLocaleString()}–$${Number(max).toLocaleString()}`;
+  }
+  const v = min ?? max;
+  return `$${Number(v).toLocaleString()}`;
 }
 
-function Section({ title, children }) {
-  return (
-    <section className="mt-6">
-      <div className="text-xs text-zinc-500">{title}</div>
-      <div className="mt-2">{children}</div>
-    </section>
-  );
+function asFlags(v) {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const parsed = JSON.parse(v);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export default async function BuildingPage({ params }) {
   const supabase = getSupabase();
   const bbl = params.bbl;
 
-  const { data: building, error: bErr } = await supabase
-    .from("buildings")
+  const { data: card, error: cardErr } = await supabase
+    .from("building_cards")
     .select("*")
     .eq("bbl", bbl)
     .maybeSingle();
 
-  if (bErr) {
-    return <pre>{JSON.stringify(bErr, null, 2)}</pre>;
+  const { data: listings, error: listingsErr } = await supabase
+    .from("listings")
+    .select("id,source,status,ask_price,listed_at,url,source_url")
+    .eq("bbl", bbl)
+    .order("listed_at", { ascending: false, nullsFirst: false })
+    .limit(50);
+
+  if (cardErr || listingsErr) {
+    return (
+      <main className="p-6">
+        <h1 className="text-4xl font-extrabold tracking-tight">Stoopr</h1>
+        <pre className="mt-6 whitespace-pre-wrap text-sm text-red-700">
+          {JSON.stringify({ cardErr, listingsErr }, null, 2)}
+        </pre>
+      </main>
+    );
   }
 
-  if (!building) {
-    return <div>Not found.</div>;
+  if (!card) {
+    return (
+      <main className="p-6">
+        <Link className="underline underline-offset-4" href="/">
+          ← Back
+        </Link>
+        <p className="mt-6 text-black/60">No building found for BBL {bbl}.</p>
+      </main>
+    );
   }
 
-  const { data: intelRows } = await supabase
-    .from("intel_current")
-    .select("*")
-    .eq("bbl", building.bbl)
-    .limit(1);
-
-  const intel = Array.isArray(intelRows) ? intelRows[0] : null;
-  const flags = Array.isArray(intel?.flags) ? intel.flags : [];
-
-  const [permits, violations, sales, listings] = await Promise.all([
-    supabase
-      .from("dob_permits")
-      .select("*")
-      .eq("bbl", building.bbl)
-      .order("filed_date", { ascending: false })
-      .limit(25),
-
-    supabase
-      .from("dob_violations")
-      .select("*")
-      .eq("bbl", building.bbl)
-      .order("issue_date", { ascending: false })
-      .limit(25),
-
-    supabase
-      .from("sales")
-      .select("*")
-      .eq("bbl", building.bbl)
-      .order("sale_date", { ascending: false })
-      .limit(10),
-
-    supabase
-      .from("listings")
-      .select("*")
-      .eq("bbl", building.bbl)
-      .order("listed_at", { ascending: false })
-      .limit(10),
-  ]);
+  const flags = asFlags(card.flags);
+  const priceRange = moneyRange(card.min_ask_price, card.max_ask_price);
 
   return (
-    <div>
-      <div>
-        <a href="/" className="back-link">← Park Slope</a>
+    <main className="p-6">
+      <header className="max-w-4xl">
+        <Link className="underline underline-offset-4 text-sm" href="/">
+          ← Home
+        </Link>
 
-        {/* A) headline */}
-        <h1>{building.address_norm ?? building.bbl}</h1>
+        <h1 className="mt-4 text-4xl font-extrabold tracking-tight">
+          {card.address_display}
+        </h1>
 
-        {/* B) meta line */}
-        <div className="meta">
-          BBL {building.bbl} · Zoning {building.zoning_district ?? "—"} · FAR{" "}
-          {building.far_built ?? "—"}/{building.far_allowed ?? "—"}
-        </div>
-      </div>
-
-      <Section title="Intel">
-        {/* C) intel line */}
-        <div className="intel-line">
-          Overall {intel?.overall_score ?? "—"} ·
-          Upside {intel?.expansion_score ?? "—"} ·
-          Risk {intel?.reno_risk_score ?? "—"} ·
-          Friction {intel?.landmark_friction_score ?? "—"}
+        <div className="mt-3 text-sm text-black/60">
+          BBL {card.bbl}
+          {" • "}
+          {card.active_listings_count > 0
+            ? `${card.active_listings_count} active${priceRange ? ` • ${priceRange}` : ""}`
+            : "no active listings"}
         </div>
 
-        {/* D) flags */}
-        {flags.length > 0 && (
-          <div className="flags">
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
+          <div className="rounded-lg border border-black/10 p-4">
+            <div className="text-xs uppercase tracking-wide text-black/50">
+              Overall score
+            </div>
+            <div className="mt-1 text-3xl font-bold tabular-nums">
+              {typeof card.overall_score === "number" ? card.overall_score : "—"}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-black/10 p-4">
+            <div className="text-xs uppercase tracking-wide text-black/50">
+              Reno risk
+            </div>
+            <div className="mt-1 text-3xl font-bold tabular-nums">
+              {typeof card.reno_risk_score === "number" ? card.reno_risk_score : "—"}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-black/10 p-4">
+            <div className="text-xs uppercase tracking-wide text-black/50">
+              Landmark friction
+            </div>
+            <div className="mt-1 text-3xl font-bold tabular-nums">
+              {typeof card.landmark_friction_score === "number"
+                ? card.landmark_friction_score
+                : "—"}
+            </div>
+          </div>
+        </div>
+
+        {flags.length > 0 ? (
+          <div className="mt-6 flex flex-wrap gap-2">
             {flags.map((f) => (
-              <span key={f} className="flag">{f}</span>
+              <span
+                key={f}
+                className="rounded-full border border-black/10 px-2 py-1 text-xs text-black/70"
+              >
+                {f}
+              </span>
             ))}
           </div>
-        )}
-      </Section>
+        ) : null}
+      </header>
 
-      <Section title="Timeline">
-        <div className="timeline">
-          {(permits.data ?? []).slice(0, 5).map((p) => (
-            <div key={p.id} className="timeline-item">
-              <span className="timeline-date">{p.filed_date ?? "—"}</span>
-              Permit — {p.type ?? "—"} {p.status ? `(${p.status})` : ""}
-            </div>
-          ))}
+      <section className="mt-10 max-w-4xl">
+        <h2 className="text-xl font-bold">Listings</h2>
 
-          {(violations.data ?? []).slice(0, 5).map((v) => (
-            <div key={v.id} className="timeline-item">
-              <span className="timeline-date">{v.issue_date ?? "—"}</span>
-              Violation — {v.status ?? "—"}
-            </div>
-          ))}
+        <div className="mt-4 divide-y divide-black/10 border-t border-black/10">
+          {(listings || []).map((l) => {
+            const href = l.url || l.source_url || null;
+            const when = l.listed_at ? new Date(l.listed_at).toLocaleDateString() : null;
 
-          {(sales.data ?? []).slice(0, 3).map((s) => (
-            <div key={s.id} className="timeline-item">
-              <span className="timeline-date">{s.sale_date ?? "—"}</span>
-              Sale — {formatPrice(s.sale_price)}
-            </div>
-          ))}
-        </div>
-      </Section>
+            return (
+              <div key={l.id} className="py-5">
+                <div className="flex items-start justify-between gap-6">
+                  <div className="min-w-0">
+                    <div className="text-sm text-black/60">
+                      <span className="font-medium text-black/70">{l.source}</span>
+                      {" • "}
+                      {l.status}
+                      {when ? ` • ${when}` : ""}
+                    </div>
 
-      {(listings.data ?? []).length > 0 && (
-        <Section title="Listings">
-          <div className="listings">
-            {(listings.data ?? []).map((l) => (
-              <div key={l.id} className="listing-row">
-                <div>
-                  {l.status ?? "—"} · {formatPrice(l.ask_price)} ·{" "}
-                  <span className="timeline-date">
-                    {formatISODate(l.listed_at)}
-                  </span>
+                    <div className="mt-1 text-lg font-semibold">
+                      {money(l.ask_price) ?? "Price unknown"}
+                    </div>
+
+                    {href ? (
+                      <a
+                        className="mt-2 inline-block text-sm underline underline-offset-4"
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View source
+                      </a>
+                    ) : (
+                      <div className="mt-2 text-sm text-black/40">No URL</div>
+                    )}
+                  </div>
                 </div>
-
-                {l.source_url && (
-                  <a href={l.source_url} target="_blank" rel="noreferrer">
-                    source →
-                  </a>
-                )}
               </div>
-            ))}
-          </div>
-        </Section>
-      )}
-    </div>
+            );
+          })}
+
+          {(listings || []).length === 0 ? (
+            <div className="py-6 text-sm text-black/60">No listings yet.</div>
+          ) : null}
+        </div>
+      </section>
+    </main>
   );
 }
