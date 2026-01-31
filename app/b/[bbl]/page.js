@@ -23,26 +23,56 @@ export default async function BuildingPage({ params }) {
     .maybeSingle();
 
   if (bErr) {
-    return <pre className="text-sm text-red-600 whitespace-pre-wrap">{JSON.stringify(bErr, null, 2)}</pre>;
+    return (
+      <pre className="text-sm text-red-600 whitespace-pre-wrap">
+        {JSON.stringify(bErr, null, 2)}
+      </pre>
+    );
   }
+
   if (!building) {
     return <div className="text-sm text-zinc-600">Not found.</div>;
   }
 
+  // ✅ FIX: join intel_current by BBL, not building.id
   const { data: intelRows } = await supabase
     .from("intel_current")
     .select("*")
-    .eq("bbl", building.id)
+    .eq("bbl", building.bbl)
     .limit(1);
 
   const intel = Array.isArray(intelRows) ? intelRows[0] : null;
   const flags = Array.isArray(intel?.flags) ? intel.flags : [];
 
   const [permits, violations, sales, listings] = await Promise.all([
-    supabase.from("dob_permits").select("*").eq("bbl", building.bbl).order("filed_date", { ascending: false }).limit(25),
-    supabase.from("dob_violations").select("*").eq("bbl", building.bbl).order("issue_date", { ascending: false }).limit(25),
-    supabase.from("sales").select("*").eq("bbl", building.bbl).order("sale_date", { ascending: false }).limit(10),
-    supabase.from("listings").select("*").eq("bbl", building.bbl).order("last_seen", { ascending: false }).limit(10),
+    supabase
+      .from("dob_permits")
+      .select("*")
+      .eq("bbl", building.bbl)
+      .order("filed_date", { ascending: false })
+      .limit(25),
+
+    supabase
+      .from("dob_violations")
+      .select("*")
+      .eq("bbl", building.bbl)
+      .order("issue_date", { ascending: false })
+      .limit(25),
+
+    supabase
+      .from("sales")
+      .select("*")
+      .eq("bbl", building.bbl)
+      .order("sale_date", { ascending: false })
+      .limit(10),
+
+    // ✅ FIX: use listed_at (last_seen does not exist)
+    supabase
+      .from("listings")
+      .select("*")
+      .eq("bbl", building.bbl)
+      .order("listed_at", { ascending: false })
+      .limit(10),
   ]);
 
   return (
@@ -69,7 +99,10 @@ export default async function BuildingPage({ params }) {
         {flags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {flags.map((f) => (
-              <span key={f} className="rounded-full bg-zinc-50 px-2 py-1 text-[11px] text-zinc-700 ring-1 ring-zinc-200">
+              <span
+                key={f}
+                className="rounded-full bg-zinc-50 px-2 py-1 text-[11px] text-zinc-700 ring-1 ring-zinc-200"
+              >
                 {f}
               </span>
             ))}
@@ -77,7 +110,9 @@ export default async function BuildingPage({ params }) {
         )}
 
         {intel?.summary_text && (
-          <div className="mt-3 text-sm text-zinc-700">{intel.summary_text}</div>
+          <div className="mt-3 text-sm text-zinc-700">
+            {intel.summary_text}
+          </div>
         )}
       </Section>
 
@@ -85,19 +120,27 @@ export default async function BuildingPage({ params }) {
         <div className="space-y-2 text-sm">
           {(permits.data ?? []).slice(0, 5).map((p) => (
             <div key={p.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">{p.filed_date ?? "—"}</span>{" "}
+              <span className="font-mono text-xs text-zinc-500">
+                {p.filed_date ?? "—"}
+              </span>{" "}
               Permit — {p.type ?? "—"} {p.status ? `(${p.status})` : ""}
             </div>
           ))}
+
           {(violations.data ?? []).slice(0, 5).map((v) => (
             <div key={v.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">{v.issue_date ?? "—"}</span>{" "}
+              <span className="font-mono text-xs text-zinc-500">
+                {v.issue_date ?? "—"}
+              </span>{" "}
               Violation — {v.status ?? "—"}
             </div>
           ))}
+
           {(sales.data ?? []).slice(0, 3).map((s) => (
             <div key={s.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">{s.sale_date ?? "—"}</span>{" "}
+              <span className="font-mono text-xs text-zinc-500">
+                {s.sale_date ?? "—"}
+              </span>{" "}
               Sale — {s.sale_price ? `$${Number(s.sale_price).toLocaleString()}` : "—"}
             </div>
           ))}
@@ -110,12 +153,25 @@ export default async function BuildingPage({ params }) {
             {(listings.data ?? []).map((l) => (
               <div key={l.id} className="flex items-center justify-between gap-3">
                 <div className="text-zinc-700">
-                  {l.status ?? "—"} · {l.ask_price ? `$${Number(l.ask_price).toLocaleString()}` : "—"} ·{" "}
-                  <span className="font-mono text-xs text-zinc-500">{new Date(l.last_seen).toISOString().slice(0, 10)}</span>
+                  {l.status ?? "—"} ·{" "}
+                  {l.ask_price ? `$${Number(l.ask_price).toLocaleString()}` : "—"} ·{" "}
+                  <span className="font-mono text-xs text-zinc-500">
+                    {l.listed_at
+                      ? new Date(l.listed_at).toISOString().slice(0, 10)
+                      : "—"}
+                  </span>
                 </div>
-                <a className="text-xs text-zinc-600 hover:underline" href={l.source_url} target="_blank" rel="noreferrer">
-                  source →
-                </a>
+
+                {l.source_url && (
+                  <a
+                    className="text-xs text-zinc-600 hover:underline"
+                    href={l.source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    source →
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -124,3 +180,4 @@ export default async function BuildingPage({ params }) {
     </div>
   );
 }
+
