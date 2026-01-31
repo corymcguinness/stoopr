@@ -1,6 +1,6 @@
 export const runtime = "edge";
 
-import { getSupabase } from "@/lib/supabase"; // <-- safest path (no @ alias)
+import { getSupabase } from "@/lib/supabase";
 
 function formatPrice(n) {
   if (n === null || n === undefined) return "—";
@@ -36,22 +36,13 @@ export default async function BuildingPage({ params }) {
     .maybeSingle();
 
   if (bErr) {
-    return (
-      <pre className="text-sm text-red-600 whitespace-pre-wrap">
-        {JSON.stringify(bErr, null, 2)}
-      </pre>
-    );
+    return <pre>{JSON.stringify(bErr, null, 2)}</pre>;
   }
 
   if (!building) {
-    return <div className="text-sm text-zinc-600">Not found.</div>;
+    return <div>Not found.</div>;
   }
 
-  if (!building.bbl) {
-    return <pre className="text-red-600">Building missing BBL</pre>;
-  }
-
-  // join intel_current by BBL
   const { data: intelRows } = await supabase
     .from("intel_current")
     .select("*")
@@ -83,7 +74,6 @@ export default async function BuildingPage({ params }) {
       .order("sale_date", { ascending: false })
       .limit(10),
 
-    // listings ordered by listed_at (not last_seen)
     supabase
       .from("listings")
       .select("*")
@@ -95,79 +85,56 @@ export default async function BuildingPage({ params }) {
   return (
     <div>
       <div>
-        <div className="text-xs text-zinc-500">
-          <a href="/" className="hover:underline">
-            ← Park Slope
-          </a>
-        </div>
+        <a href="/" className="back-link">← Park Slope</a>
 
-        <h1 className="mt-2 text-lg font-semibold">
-          {building.address_norm ?? building.bbl}
-        </h1>
+        {/* A) headline */}
+        <h1>{building.address_norm ?? building.bbl}</h1>
 
-        <div className="mt-1 font-mono text-xs text-zinc-600">
-          BBL {building.bbl} ·{" "}
-          <span className="text-zinc-500">
-            BBL = NYC’s building ID (borough-block-lot)
-          </span>
-        </div>
-
-        <div className="mt-1 font-mono text-xs text-zinc-600">
-          Zoning {building.zoning_district ?? "—"} · FAR{" "}
+        {/* B) meta line */}
+        <div className="meta">
+          BBL {building.bbl} · Zoning {building.zoning_district ?? "—"} · FAR{" "}
           {building.far_built ?? "—"}/{building.far_allowed ?? "—"}
         </div>
       </div>
 
       <Section title="Intel">
-        <div className="font-mono text-sm text-zinc-700">
-          Overall {intel?.overall_score ?? "—"} · Upside{" "}
-          {intel?.expansion_score ?? "—"} · Risk {intel?.reno_risk_score ?? "—"} ·
+        {/* C) intel line */}
+        <div className="intel-line">
+          Overall {intel?.overall_score ?? "—"} ·
+          Upside {intel?.expansion_score ?? "—"} ·
+          Risk {intel?.reno_risk_score ?? "—"} ·
           Friction {intel?.landmark_friction_score ?? "—"}
         </div>
 
+        {/* D) flags */}
         {flags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flags">
             {flags.map((f) => (
-              <span
-                key={f}
-                className="rounded-full bg-zinc-50 px-2 py-1 text-[11px] text-zinc-700 ring-1 ring-zinc-200"
-              >
-                {f}
-              </span>
+              <span key={f} className="flag">{f}</span>
             ))}
           </div>
-        )}
-
-        {intel?.summary_text && (
-          <div className="mt-3 text-sm text-zinc-700">{intel.summary_text}</div>
         )}
       </Section>
 
       <Section title="Timeline">
-        <div className="space-y-2 text-sm">
+        <div className="timeline">
           {(permits.data ?? []).slice(0, 5).map((p) => (
-            <div key={p.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">
-                {p.filed_date ?? "—"}
-              </span>{" "}
+            <div key={p.id} className="timeline-item">
+              <span className="timeline-date">{p.filed_date ?? "—"}</span>
               Permit — {p.type ?? "—"} {p.status ? `(${p.status})` : ""}
             </div>
           ))}
 
           {(violations.data ?? []).slice(0, 5).map((v) => (
-            <div key={v.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">
-                {v.issue_date ?? "—"}
-              </span>{" "}
+            <div key={v.id} className="timeline-item">
+              <span className="timeline-date">{v.issue_date ?? "—"}</span>
               Violation — {v.status ?? "—"}
             </div>
           ))}
 
           {(sales.data ?? []).slice(0, 3).map((s) => (
-            <div key={s.id} className="text-zinc-700">
-              <span className="font-mono text-xs text-zinc-500">
-                {s.sale_date ?? "—"}
-              </span>{" "}
+            <div key={s.id} className="timeline-item">
+              <span className="timeline-date">{s.sale_date ?? "—"}</span>
               Sale — {formatPrice(s.sale_price)}
             </div>
           ))}
@@ -176,26 +143,18 @@ export default async function BuildingPage({ params }) {
 
       {(listings.data ?? []).length > 0 && (
         <Section title="Listings">
-          <div className="space-y-2 text-sm">
+          <div className="listings">
             {(listings.data ?? []).map((l) => (
-              <div
-                key={l.id}
-                className="flex items-center justify-between gap-3"
-              >
-                <div className="text-zinc-700">
+              <div key={l.id} className="listing-row">
+                <div>
                   {l.status ?? "—"} · {formatPrice(l.ask_price)} ·{" "}
-                  <span className="font-mono text-xs text-zinc-500">
+                  <span className="timeline-date">
                     {formatISODate(l.listed_at)}
                   </span>
                 </div>
 
                 {l.source_url && (
-                  <a
-                    className="text-xs text-zinc-600 hover:underline"
-                    href={l.source_url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <a href={l.source_url} target="_blank" rel="noreferrer">
                     source →
                   </a>
                 )}
