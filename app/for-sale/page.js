@@ -8,71 +8,45 @@ export default async function ForSale() {
   // 1) Grab active listings
   const { data: listings, error } = await supabase
     .from("listings")
-    .select("id, bbl, source, source_url, status, ask_price, last_seen")
+    .select("id, bbl, source, source_url, status, ask_price, listed_at")
     .eq("status", "active")
-    .order("last_seen", { ascending: false })
+    .order("listed_at", { ascending: false })
     .limit(100);
 
   if (error) {
-    return (
-      <pre className="text-sm text-red-600 whitespace-pre-wrap">
-        {JSON.stringify(error, null, 2)}
-      </pre>
-    );
+    return <pre>{JSON.stringify(error, null, 2)}</pre>;
   }
 
-  const bbls = Array.from(
-    new Set((listings ?? []).map((l) => l.bbl).filter(Boolean))
-  );
+  const bbls = [...new Set((listings ?? []).map(l => l.bbl))];
 
-  // 2) Fetch building info by BBL (NOT id)
+  // 2) Fetch buildings by BBL (IMPORTANT FIX)
   const { data: buildings } = await supabase
     .from("buildings")
-    .select("bbl, address_norm, neighborhood_id")
+    .select("bbl, address_norm")
     .in("bbl", bbls);
 
-  const byBBL = new Map((buildings ?? []).map((b) => [b.bbl, b]));
+  const byBBL = new Map((buildings ?? []).map(b => [b.bbl, b]));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="text-xs text-zinc-500">
-          <a href="/" className="hover:underline">← Park Slope</a>
-        </div>
-        <h1 className="mt-2 text-lg font-semibold">For sale</h1>
-        <div className="mt-1 text-sm text-zinc-600">
-          Active listing signals, matched to buildings.
-        </div>
-      </div>
+    <div style={{ padding: 24 }}>
+      <h1>For Sale</h1>
 
-      <div className="border-y border-zinc-200">
-        {(listings ?? []).length === 0 ? (
-          <div className="py-6 text-sm text-zinc-600">
-            No active listings yet.
+      {(listings ?? []).map(l => {
+        const b = byBBL.get(l.bbl);
+
+        return (
+          <div key={l.id} style={{ marginTop: 16 }}>
+            <a href={`/b/${l.bbl}`}>
+              {b?.address_norm ?? l.bbl}
+            </a>
+
+            <div style={{ fontSize: 12, opacity: 0.7 }}>
+              ${Number(l.ask_price).toLocaleString()} ·{" "}
+              {l.listed_at?.slice(0, 10)}
+            </div>
           </div>
-        ) : (
-          listings.map((l) => {
-            const b = byBBL.get(l.bbl);
-            const title = b?.address_norm ?? l.bbl ?? "Unknown building";
-
-            return (
-              <div key={l.id} className="block py-4 hover:bg-zinc-50">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <a
-                      href={`/b/${l.bbl}`}
-                      className="font-medium hover:underline"
-                    >
-                      {title}
-                    </a>
-                    <div className="mt-1 font-mono text-xs text-zinc-600">
-                      BBL {l.bbl}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="font-mono text-sm text-zinc-700">
-                      {l.ask_price
-                        ? `$${Number(l.ask_price).toLocaleString()}`
-                        : "—"}
-                    </div>
+        );
+      })}
+    </div>
+  );
+}
